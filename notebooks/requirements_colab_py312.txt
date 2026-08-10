@@ -1,0 +1,37 @@
+# Google Colab / CPython 3.12 compatibility set for basic_training_notebook.ipynb.
+# TensorFlow 2.21 is the version targeted by the repository's current Keras and
+# NumPy compatibility fixes. Keep this pin until a newer line is exercised by
+# the complete training and TFLite export path.
+tensorflow==2.21.*
+
+# microWakeWord now deliberately supports NumPy 2. Piper Sample Generator 3.2
+# also requires NumPy 2, so do not downgrade to the NumPy 1.x ABI.
+numpy>=2,<3
+
+# microWakeWord's Clips class consumes the decoded {path, array,
+# sampling_rate} mapping. datasets 4 changed Audio values to TorchCodec decoder
+# objects, so remain on the final 3.x API until Clips is migrated deliberately.
+datasets[audio]==3.6.0
+
+# Current packaged CLI; replaces cloning and executing the historical source
+# script. This package accepts Python >=3.9 and reuses a compatible Colab Torch
+# installation instead of requiring a separate CPU-only stack.
+piper-sample-generator==3.2.0
+
+# Piper Sample Generator 3.2.0 pins this release. Keeping the same version also
+# prevents two audio augmentation API versions in one kernel.
+audiomentations==0.33.0
+
+# Upstream audio-metadata 0.11.1 pins an obsolete attrs version. This maintained
+# fork commit removes that pin and is the narrow workaround already used by the
+# project notebook.
+audio-metadata @ git+https://github.com/whatsnowplaying/audio-metadata@d4ebb238e6a401bb1a5aaaac60c9e2b3cb30929f
+
+ai-edge-litert
+mmap-ninja
+pymicro-features
+pyyaml
+scipy
+soundfile
+tqdm
+webrtcvad-wheels
