@@ -39,23 +39,25 @@ def swap_attribute(obj, attr, temp_value):
 
 
 def validate_nonstreaming(config, data_processor, model, test_set):
-    testing_fingerprints, testing_ground_truth, _ = data_processor.get_data(
-        test_set,
-        batch_size=config["batch_size"],
-        features_length=config["spectrogram_length"],
-        truncation_strategy="truncate_start",
-    )
-    testing_ground_truth = testing_ground_truth.reshape(-1, 1)
-
     model.reset_metrics()
-
-    result = model.evaluate(
-        testing_fingerprints,
-        testing_ground_truth,
-        batch_size=1024,
-        return_dict=True,
-        verbose=0,
-    )
+    validation_batch_size = config.get("validation_batch_size", config["batch_size"])
+    result = None
+    with swap_attribute(model, "reset_metrics", lambda: None):
+        for testing_fingerprints, testing_ground_truth, _ in data_processor.get_data_batches(
+            test_set,
+            batch_size=validation_batch_size,
+            features_length=config["spectrogram_length"],
+            truncation_strategy="truncate_start",
+        ):
+            result = model.evaluate(
+                testing_fingerprints,
+                testing_ground_truth.reshape(-1, 1),
+                batch_size=validation_batch_size,
+                return_dict=True,
+                verbose=0,
+            )
+    if result is None:
+        raise ValueError(f"No samples found in {test_set} set")
 
     metrics = {}
     metrics["accuracy"] = result["accuracy"]
@@ -73,27 +75,24 @@ def validate_nonstreaming(config, data_processor, model, test_set):
     test_set_fp = np.asarray(result["fp"])
 
     if data_processor.get_mode_size("validation_ambient") > 0:
-        (
-            ambient_testing_fingerprints,
-            ambient_testing_ground_truth,
-            _,
-        ) = data_processor.get_data(
-            test_set + "_ambient",
-            batch_size=config["batch_size"],
-            features_length=config["spectrogram_length"],
-            truncation_strategy="split",
-        )
-        ambient_testing_ground_truth = ambient_testing_ground_truth.reshape(-1, 1)
-
         # XXX: tf no longer provides a way to evaluate a model without updating metrics
         with swap_attribute(model, "reset_metrics", lambda: None):
-            ambient_predictions = model.evaluate(
-                ambient_testing_fingerprints,
-                ambient_testing_ground_truth,
-                batch_size=1024,
-                return_dict=True,
-                verbose=0,
-            )
+            ambient_predictions = None
+            for ambient_fingerprints, ambient_ground_truth, _ in data_processor.get_data_batches(
+                test_set + "_ambient",
+                batch_size=validation_batch_size,
+                features_length=config["spectrogram_length"],
+                truncation_strategy="split",
+            ):
+                ambient_predictions = model.evaluate(
+                    ambient_fingerprints,
+                    ambient_ground_truth.reshape(-1, 1),
+                    batch_size=validation_batch_size,
+                    return_dict=True,
+                    verbose=0,
+                )
+        if ambient_predictions is None:
+            raise ValueError(f"No samples found in {test_set}_ambient set")
 
         duration_of_ambient_set = (
             data_processor.get_mode_duration("validation_ambient") / 3600.0

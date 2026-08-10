@@ -595,3 +595,34 @@ class FeatureHandler(object):
             np.random.shuffle(indices)
 
         return data[indices], labels[indices], weights[indices]
+
+    def get_data_batches(
+        self,
+        mode: str,
+        batch_size: int,
+        features_length: int,
+        truncation_strategy: str = "default",
+    ):
+        """Yield evaluation data in bounded batches without loading a set into RAM."""
+        if mode == "training":
+            raise ValueError("get_data_batches is intended for evaluation modes")
+        if batch_size < 1:
+            raise ValueError("batch_size must be positive")
+
+        data = []
+        labels = []
+        weights = []
+        for provider in self.feature_providers:
+            generator = provider.get_feature_generator(
+                mode, features_length, truncation_strategy
+            )
+            for spectrogram in generator:
+                data.append(spectrogram)
+                labels.append(provider.label)
+                weights.append(provider.penalty_weight)
+                if len(data) == batch_size:
+                    yield np.asarray(data), np.asarray(labels), np.asarray(weights)
+                    data, labels, weights = [], [], []
+
+        if data:
+            yield np.asarray(data), np.asarray(labels), np.asarray(weights)
