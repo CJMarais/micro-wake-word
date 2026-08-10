@@ -13,14 +13,18 @@ numpy>=2,<3
 # objects, so remain on the final 3.x API until Clips is migrated deliberately.
 datasets[audio]==3.6.0
 
-# Current packaged CLI; replaces cloning and executing the historical source
-# script. This package accepts Python >=3.9 and reuses a compatible Colab Torch
-# installation instead of requiring a separate CPU-only stack.
-piper-sample-generator==3.2.0
+# Piper Sample Generator 3.2.0 imports its bundled piper_train package, which
+# is available from the source checkout installed by the notebook. Keep its
+# runtime dependencies here so the editable install can use --no-deps and does
+# not replace Colab's already matched CUDA-enabled Torch/torchaudio pair.
+piper-tts==1.3.0
+torch>=2,<3
+torchaudio
 
-# Piper Sample Generator 3.2.0 pins this release. Keeping the same version also
-# prevents two audio augmentation API versions in one kernel.
-audiomentations==0.33.0
+# microWakeWord uses AddColorNoise (introduced in 0.35.0). Version 0.43.1
+# supports Python 3.12 and NumPy 2. Piper is installed with --no-deps because
+# synthesis does not use its older audiomentations constraint.
+audiomentations==0.43.1
 
 # Upstream audio-metadata 0.11.1 pins an obsolete attrs version. This maintained
 # fork commit removes that pin and is the narrow workaround already used by the
