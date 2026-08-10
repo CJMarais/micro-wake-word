@@ -43,12 +43,12 @@ def validate_nonstreaming(config, data_processor, model, test_set):
     validation_batch_size = config.get("validation_batch_size", config["batch_size"])
     result = None
     with swap_attribute(model, "reset_metrics", lambda: None):
-        for testing_fingerprints, testing_ground_truth, _ in data_processor.get_data_batches(
+        for batch_index, (testing_fingerprints, testing_ground_truth, _) in enumerate(data_processor.get_data_batches(
             test_set,
             batch_size=validation_batch_size,
             features_length=config["spectrogram_length"],
             truncation_strategy="truncate_start",
-        ):
+        ), start=1):
             result = model.evaluate(
                 testing_fingerprints,
                 testing_ground_truth.reshape(-1, 1),
@@ -56,6 +56,8 @@ def validate_nonstreaming(config, data_processor, model, test_set):
                 return_dict=True,
                 verbose=0,
             )
+            if batch_index % config.get("validation_progress_batches", 100) == 0:
+                print(f"Validation progress: {batch_index} batches processed", flush=True)
     if result is None:
         raise ValueError(f"No samples found in {test_set} set")
 
@@ -78,12 +80,12 @@ def validate_nonstreaming(config, data_processor, model, test_set):
         # XXX: tf no longer provides a way to evaluate a model without updating metrics
         with swap_attribute(model, "reset_metrics", lambda: None):
             ambient_predictions = None
-            for ambient_fingerprints, ambient_ground_truth, _ in data_processor.get_data_batches(
+            for batch_index, (ambient_fingerprints, ambient_ground_truth, _) in enumerate(data_processor.get_data_batches(
                 test_set + "_ambient",
                 batch_size=validation_batch_size,
                 features_length=config["spectrogram_length"],
                 truncation_strategy="split",
-            ):
+            ), start=1):
                 ambient_predictions = model.evaluate(
                     ambient_fingerprints,
                     ambient_ground_truth.reshape(-1, 1),
@@ -91,6 +93,8 @@ def validate_nonstreaming(config, data_processor, model, test_set):
                     return_dict=True,
                     verbose=0,
                 )
+                if batch_index % config.get("validation_progress_batches", 100) == 0:
+                    print(f"Ambient validation progress: {batch_index} batches processed", flush=True)
         if ambient_predictions is None:
             raise ValueError(f"No samples found in {test_set}_ambient set")
 
@@ -225,11 +229,26 @@ def train(model, config, data_processor):
     model.make_train_function()
     _, model.train_function = tf_decorator.unwrap(model.train_function)
 
-    # Configure checkpointer and restore if available
+    training_steps_max = np.sum(training_steps_list)
+
+    # Configure checkpointer and restore model, optimizer, and progress if available.
     checkpoint_directory = os.path.join(config["train_dir"], "restore/")
-    checkpoint_prefix = os.path.join(checkpoint_directory, "ckpt")
-    checkpoint = tf.train.Checkpoint(optimizer=optimizer, model=model)
-    checkpoint.restore(tf.train.latest_checkpoint(checkpoint_directory))
+    os.makedirs(checkpoint_directory, exist_ok=True)
+    completed_training_step = tf.Variable(0, dtype=tf.int64, trainable=False)
+    checkpoint = tf.train.Checkpoint(
+        optimizer=optimizer, model=model, completed_training_step=completed_training_step
+    )
+    checkpoint_manager = tf.train.CheckpointManager(
+        checkpoint, checkpoint_directory, max_to_keep=3, checkpoint_name="ckpt"
+    )
+    latest_checkpoint = checkpoint_manager.latest_checkpoint
+    if latest_checkpoint:
+        checkpoint.restore(latest_checkpoint).expect_partial()
+        logging.info(
+            "Restored checkpoint %s at completed training step %d",
+            latest_checkpoint,
+            int(completed_training_step.numpy()),
+        )
 
     # Configure TensorBoard summaries
     train_writer = tf.summary.create_file_writer(
@@ -239,13 +258,12 @@ def train(model, config, data_processor):
         os.path.join(config["summaries_dir"], "validation")
     )
 
-    training_steps_max = np.sum(training_steps_list)
-
     best_minimization_quantity = 10000
     best_maximization_quantity = 0.0
     best_no_faph_cutoff = 1.0
 
-    for training_step in range(1, training_steps_max + 1):
+    first_training_step = int(completed_training_step.numpy()) + 1
+    for training_step in range(first_training_step, training_steps_max + 1):
         training_steps_sum = 0
         for i in range(len(training_steps_list)):
             training_steps_sum += training_steps_list[i]
@@ -296,19 +314,29 @@ def train(model, config, data_processor):
             train_ground_truth,
             sample_weight=combined_weights,
         )
+        completed_training_step.assign(training_step)
 
-        # Print the running statistics in the current validation epoch
-        print(
-            "Validation Batch #{:d}: Accuracy = {:.3f}; Recall = {:.3f}; Precision = {:.3f}; Loss = {:.4f}; Mini-Batch #{:d}".format(
-                (training_step // config["eval_step_interval"] + 1),
-                result[1],
-                result[2],
-                result[3],
-                result[9],
-                (training_step % config["eval_step_interval"]),
-            ),
-            end="\r",
-        )
+        checkpoint_step_interval = config.get("checkpoint_step_interval", 0)
+        if checkpoint_step_interval and training_step % checkpoint_step_interval == 0:
+            saved_checkpoint = checkpoint_manager.save(checkpoint_number=training_step)
+            print(
+                f"Persistent checkpoint saved at step {training_step}: {saved_checkpoint}",
+                flush=True,
+            )
+
+        progress_step_interval = config.get("progress_step_interval", 100)
+        if training_step % progress_step_interval == 0:
+            print(
+                "Training progress: step {:d}/{:d}; accuracy {:.1f}%; recall {:.1f}%; precision {:.1f}%; loss {:.4f}".format(
+                    training_step,
+                    training_steps_max,
+                    result[1] * 100,
+                    result[2] * 100,
+                    result[3] * 100,
+                    result[9],
+                ),
+                flush=True,
+            )
 
         is_last_step = training_step == training_steps_max
         if (training_step % config["eval_step_interval"]) == 0 or is_last_step:
@@ -447,7 +475,7 @@ def train(model, config, data_processor):
                 model.save_weights(
                     os.path.join(config["train_dir"], "best_weights.weights.h5")
                 )
-                checkpoint.save(file_prefix=checkpoint_prefix)
+                checkpoint_manager.save(checkpoint_number=training_step)
 
             logging.info(
                 "So far the best minimization quantity is %.3f with best maximization quantity of %.5f%%; no faph cutoff is %.2f",
@@ -457,5 +485,5 @@ def train(model, config, data_processor):
             )
 
     # Save checkpoint after training
-    checkpoint.save(file_prefix=checkpoint_prefix)
+    checkpoint_manager.save(checkpoint_number=int(completed_training_step.numpy()))
     model.save_weights(os.path.join(config["train_dir"], "last_weights.weights.h5"))
