@@ -1,4 +1,4 @@
-# Google Colab / CPython 3.12 compatibility set for basic_training_notebook.ipynb.
+# Google Colab / CPython 3.12 compatibility set for basic_training_notebook_colab_py312.ipynb.
 # TensorFlow 2.21 is the version targeted by the repository's current Keras and
 # NumPy compatibility fixes. Keep this pin until a newer line is exercised by
 # the complete training and TFLite export path.
