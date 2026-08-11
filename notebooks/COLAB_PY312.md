@@ -17,8 +17,9 @@ The notebook clones `REPOSITORY_URL` at `REPOSITORY_REF`. Those settings must id
 
 - `SMOKE_TEST = True` uses reduced sample counts and local temporary storage.
 - Full mode mounts Google Drive and uses `MyDrive/micro-wake-word/training_runs/<RUN_NAME>/`.
-- `RUN_ACTION = "new"` requires a unique run name. Use another unique name for a fresh run of the same target or for a different target.
-- `RUN_ACTION = "resume"` requires the previous run name, matching target word, metadata, and TensorFlow checkpoint.
+- `RUN_NAME` is generated from a filename-safe ASCII form of `TARGET_WORD`, followed by `_v<MODEL_VERSION>`.
+- `RUN_ACTION = "new"` requires that generated run name to be unused. Increment `MODEL_VERSION` for another fresh run of the same target.
+- `RUN_ACTION = "resume"` requires the original target and model version, matching metadata, and a TensorFlow checkpoint.
 - Full checkpoints contain model weights, Adam optimizer state, and the completed training step. The three most recent checkpoints are retained.
 - Generated speech, downloaded datasets, converted audio, and RaggedMmap features remain in the Colab runtime and are regenerated after runtime replacement.
 - The exported model is copied to `<RUN_NAME>.tflite` in the persistent run directory. After that copy is verified, `<RUN_NAME>.json` is written beside it using `TARGET_WORD` as the manifest's `wake_word` and the configured deployment values. Browser download is used only when the TFLite copy fails.
@@ -28,6 +29,9 @@ The notebook clones `REPOSITORY_URL` at `REPOSITORY_REF`. Those settings must id
 
 - The runtime must use Python 3.12. GPU training is expected for the full configuration, but Colab hardware type, memory, storage, quotas, and session duration are not fixed.
 - Piper source and model files, Hugging Face datasets, MIT room responses, FMA audio, and pre-generated negative features are network inputs. File locations and repository formats can change independently of this repository.
+- Piper model selection is controlled by `PIPER_MODEL_DIRECTORY`, `PIPER_MODEL_FILENAME`, `PIPER_MODEL_RELEASE_TAG`, and `PIPER_MODEL_CONFIG_REF`. The generator-ready `.pt` assets are listed on the [Piper Sample Generator release page](https://github.com/rhasspy/piper-sample-generator/releases/tag/v2.0.0), and matching configuration filenames are listed in its [models directory](https://github.com/rhasspy/piper-sample-generator/tree/v3.2.0/models).
+- Release `v2.0.0` currently contains `de_DE-mls-medium.pt`, `en_US-libritts_r-medium.pt`, `fr_FR-mls-medium.pt`, and `nl_NL-mls-medium.pt`.
+- `TRAINED_LANGUAGES` is derived from the base language portion of the model filename's locale prefix. For example, `de_DE-mls-medium.pt` produces `["de"]`. This records the synthesis model language; it does not validate pronunciation or multilingual training coverage.
 - Hugging Face authentication is optional. An `HF_TOKEN` may provide higher rate limits and faster or more reliable downloads; the notebook also operates without one. Store tokens in Colab secrets or environment variables, not in the notebook.
 - Full-mode AudioSet input is streamed from the current balanced Parquet configuration. The configured sample count controls how many rows are converted.
 - FFmpeg and libsndfile are installed through the Colab system package manager.
