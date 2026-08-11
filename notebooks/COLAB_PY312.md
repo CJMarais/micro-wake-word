@@ -21,7 +21,7 @@ The notebook clones `REPOSITORY_URL` at `REPOSITORY_REF`. Those settings must id
 - `RUN_ACTION = "resume"` requires the previous run name, matching target word, metadata, and TensorFlow checkpoint.
 - Full checkpoints contain model weights, Adam optimizer state, and the completed training step. The three most recent checkpoints are retained.
 - Generated speech, downloaded datasets, converted audio, and RaggedMmap features remain in the Colab runtime and are regenerated after runtime replacement.
-- The exported model is copied to `<RUN_NAME>.tflite` in the persistent run directory. Browser download is used only when that copy fails.
+- The exported model is copied to `<RUN_NAME>.tflite` in the persistent run directory. After that copy is verified, `<RUN_NAME>.json` is written beside it using the configured ESPHome micro-wake-word manifest values. Browser download is used only when the TFLite copy fails.
 - Execution events and periodic resource samples are appended to JSONL files. The final cell writes a session-specific `run_summary_<SESSION_ID>.json` and refreshes `run_summary.json` with the latest completed session.
 
 ## External inputs and environment assumptions
@@ -40,6 +40,7 @@ The notebook clones `REPOSITORY_URL` at `REPOSITORY_REF`. Those settings must id
 - Regenerated speech and augmented features can differ between Colab sessions.
 - Cached files in `/content/micro-wake-word-work` are reused within one runtime. They are not retained when Colab replaces the runtime.
 - Performance records are comparable only when the run settings, repository commit, accelerator, Colab tier, and input counts are recorded together.
+- `PROBABILITY_CUTOFF`, `SLIDING_WINDOW_SIZE`, and `TENSOR_ARENA_SIZE` are deployment settings in the generated manifest. Confirm them with model/device testing before distribution.
 
 ## Performance records
 
