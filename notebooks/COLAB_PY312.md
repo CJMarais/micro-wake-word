@@ -83,3 +83,32 @@ For a comparison run, record:
 - peak system RAM, peak GPU memory, typical GPU utilization, final workspace disk use, interruptions, quota messages, retries, and failed downloads.
 
 Screenshots of Colab resource graphs can supplement `run_summary.json`; note the displayed time range and the training stage active during that range.
+
+## Observed free-tier Colab performance
+
+Seven full-mode runs were measured on free-tier Colab between 11 and 13 August 2026. Each used Python 3.12, TensorFlow 2.21, two CPU cores, 10,000 training steps, batch size 128, 1,000 synthetic samples, and 2,000 AudioSet samples. Four runs executed on CPU and three executed on an assigned NVIDIA T4 with CUDA available.
+
+| Effective hardware | Runs | Mean total time | Observed range | Mean training span |
+| --- | ---: | ---: | ---: | ---: |
+| CPU | 4 | 121.7 minutes | 111.7-135.1 minutes | 98.5 minutes |
+| NVIDIA T4 | 3 | 85.3 minutes | 84.0-86.1 minutes | 66.7 minutes |
+
+For this configuration, the T4 reduced mean total runtime by approximately 30%, from about two hours to about 85 minutes. Three same-target CPU/T4 comparisons showed total-time reductions of 25.7%, 32.7%, and 36.3%. These are operational observations rather than controlled hardware benchmarks: Colab allocation, network inputs, repository revision, and service load can affect results.
+
+The three T4 runs recorded a median sampled GPU utilization of 2%, peak sampled utilization of 7-8%, and peak GPU memory use of approximately 1.4 GB. Resource sampling occurred once per minute and can miss short utilization spikes. The consistently low utilization and memory use indicate that this workflow is not predominantly GPU-compute-bound; preprocessing, validation, Python execution, storage, and checkpoint activity contribute materially to total duration. A more powerful GPU should not be expected to provide proportional acceleration without pipeline changes.
+
+Across the measured runs:
+
+- additional temporary disk use was approximately 35 GB in six comparable runs;
+- peak system RAM use was approximately 4.5-5.9 GB;
+- a standard 12.7 GB Colab runtime had sufficient memory headroom;
+- high-RAM mode was not required;
+- batch size 128 did not create observed RAM or GPU-memory pressure;
+- preparation required approximately 15-21 minutes before training began;
+- the 100-step checkpoint interval limited lost model progress, although regenerated runtime-only datasets and features still add recovery time after runtime replacement.
+
+Plan for at least 40 GB of free temporary disk before a full run; 45 GB or more provides headroom for downloads, extraction, and dependency changes. CPU-only execution is practical when GPU quota is unavailable. For this measured workload, a future user should expect approximately two hours on CPU or 85 minutes on a T4, without treating either value as a completion guarantee.
+
+`PERFORMANCE_RUN_LABEL` records user intent and must not be used alone to classify benchmark hardware. Use `cuda_available`, the installed PyTorch build, and recorded GPU metrics to determine the effective runtime. Some early summaries labelled `free-tier-gpu` were CPU executions because CUDA was unavailable.
+
+These measurements describe notebook execution performance only. They do not establish model quality, false-accept rate, false-reject rate, pronunciation coverage, probability-cutoff suitability, microphone robustness, or target-device latency. Those properties require a fixed independent evaluation set and real deployment testing.

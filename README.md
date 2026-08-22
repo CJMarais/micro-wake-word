@@ -41,7 +41,7 @@ The generated samples are augmented before or during training to increase variab
 
 Please see the ``basic_training_notebook.ipynb`` notebook to see how a model is trained. This notebook will produce a model, but it will most likely not be usable! Training a usable model requires a lot of experimentation, and that notebook is meant to serve only as a starting point for advanced users.
 
-An additional notebook, ``notebooks/basic_training_notebook_colab_py312.ipynb``, covers a fresh Google Colab Python 3.12 runtime. Its setup, persistence, repeatability constraints, and branch-specific implementation changes are documented in [notebooks/COLAB_PY312.md](notebooks/COLAB_PY312.md). The original training notebook remains unchanged.
+An additional notebook, ``notebooks/basic_training_notebook_colab_py312.ipynb``, covers a fresh Google Colab Python 3.12 runtime. Its setup, persistence, repeatability constraints, observed free-tier CPU/T4 performance, and branch-specific implementation changes are documented in [notebooks/COLAB_PY312.md](notebooks/COLAB_PY312.md). The original training notebook remains unchanged.
 
 ## Models
 
